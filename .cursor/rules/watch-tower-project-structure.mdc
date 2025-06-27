@@ -1,0 +1,54 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: Watch Tower fleet management system project structure and components
+globs:
+  - "**/*.py"
+  - "**/*.md"
+alwaysApply: true
+---
+
+# Watch Tower Project Structure
+
+Fleet management system for VPC's 84 container trucks in Lagos, Nigeria. Integrates LocoNav GPS with AI-powered natural language interface.
+
+## Project Layout
+
+### Backend Structure
+- **Models**: [backend/models/](mdc:backend/models) - SQLAlchemy models with PostGIS
+- **Schemas**: [backend/schemas/](mdc:backend/schemas) - Pydantic validation schemas
+- **Services**: [backend/services/](mdc:backend/services) - External integrations (LocoNav, Sheets, AI)
+- **API**: [backend/api/](mdc:backend/api) - FastAPI endpoints
+- **DB**: [backend/db/session.py](mdc:backend/db/session.py) - Async database configuration
+
+### Documentation
+- **PRD**: [PRODUCT_REQUIREMENTS_DOCUMENT.md](mdc:docs/PRODUCT_REQUIREMENTS_DOCUMENT.md) - Business requirements
+- **O3 Plan**: [O3_IMPLEMENTATION_PLAN.md](mdc:docs/O3_IMPLEMENTATION_PLAN.md) - Technical improvements
+- **Architecture**: [TECHNICAL_ARCHITECTURE.md](mdc:docs/TECHNICAL_ARCHITECTURE.md) - System design
+
+### Configuration
+- **Dependencies**: [requirements.txt](mdc:requirements.txt) - Python packages
+- **Docker**: [docker-compose.yml](mdc:docker-compose.yml) - Container setup
+- **Environment**: Use `.env` for secrets (not tracked)
+
+## Key Features
+
+1. **Natural Language Interface**: Slack bot for fleet commands
+2. **Real-time Tracking**: GPS location via LocoNav API
+3. **Automated Reporting**: Daily summaries at 6 AM Lagos time
+4. **Data Integration**: Sync between LocoNav and Google Sheets
+
+## Implementation Status
+
+Check [tracker.md](mdc:.cursor/toy-box/tracker.md) for current task status and [scratch-pad.md](mdc:.cursor/toy-box/scratch-pad.md) for latest updates.
+
+## External Integrations
+
+- **LocoNav API**: GPS tracking and trip management
+- **Google Sheets**: Master data synchronization
+- **OpenAI**: Natural language processing (Responses API)
+- **Slack**: User interface via bot
+- **Supabase**: Database and real-time subscriptions

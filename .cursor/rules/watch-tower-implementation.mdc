@@ -1,0 +1,54 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+---
+description: O3 architectural recommendations for Watch Tower fleet management system
+globs:
+  - "backend/**/*.py"
+  - "**/*.sql"
+  - "docs/*.md"
+alwaysApply: true
+---
+
+# Watch Tower O3 Implementation Guidelines
+
+This project implements O3's architectural improvements for VPC's fleet management system. Reference [O3 Implementation Plan](mdc:docs/O3_IMPLEMENTATION_PLAN.md) for details.
+
+## Core Principles
+
+1. **Async-First**: All I/O operations must be async
+2. **Event Sourcing**: Use Redis Streams for inbound data
+3. **Geography Types**: PostGIS for all location data (geography(Point,4326))
+4. **Responses API**: Use OpenAI Responses API, NOT Assistants API
+5. **Function Calling**: LLM only calls predefined, validated functions
+
+## Database Guidelines
+
+- Models in [models/__init__.py](mdc:backend/models/__init__.py) must use PostGIS geography types
+- Use `from geoalchemy2 import Geography` for spatial types
+- Create spatial indexes for all geography columns
+- Always specify SRID 4326 for GPS coordinates
+
+## Service Architecture
+
+- **LocoNav Service**: [loconav_service.py](mdc:backend/services/loconav_service.py) - async with retry logic
+- **Google Sheets**: Rate limit to 250 calls/minute, batch operations
+- **AI Service**: OpenAI Responses API with function registry pattern
+- **Webhooks**: HMAC validation, publish to Redis Streams
+
+## API Design
+
+- All endpoints must return real data (no placeholders)
+- Target <500ms p95 response time
+- Use Pydantic schemas for validation
+- Implement proper error handling with status codes
+
+## Key Technologies
+
+- FastAPI with async SQLAlchemy 2
+- PostgreSQL 16 + PostGIS 3.4
+- Redis Streams for events
+- Supabase for real-time
+- Celery for background tasks
