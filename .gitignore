@@ -94,6 +94,8 @@ tmp/
 credentials.json
 token.json
 service-account-key.json
+GOOGLE_SHEETS_CREDENTIALS_JSON.json
+*credentials*.json
 
 # Local development
 local_data/
