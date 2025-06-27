@@ -4,10 +4,13 @@ Webhook endpoints for external integrations
 
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 from db.session import get_db
 from services import LocoNavService
 from schemas import LocoNavWebhookPayload, SuccessResponse
+from events import WebhookReceivedEvent, PositionUpdatedEvent, EventType
+from events.publisher import event_publisher
 
 router = APIRouter()
 
@@ -35,15 +38,33 @@ async def loconav_position_webhook(
     """
     service = LocoNavService()
     
+    # Get raw body for signature verification
+    body = await request.body()
+    body_str = body.decode()
+    
     # Verify webhook signature
+    signature_valid = True
     if x_loconav_signature:
-        # Get raw body for signature verification
-        body = await request.body()
-        if not service.verify_webhook_signature(body.decode(), x_loconav_signature):
+        signature_valid = service.verify_webhook_signature(body_str, x_loconav_signature)
+        if not signature_valid:
             raise HTTPException(
                 status_code=401,
                 detail="Invalid webhook signature"
             )
+    
+    # Publish webhook received event
+    try:
+        webhook_event = WebhookReceivedEvent(
+            webhook_type="position_update",
+            source="loconav",
+            payload=payload.model_dump(),
+            headers=dict(request.headers),
+            signature_valid=signature_valid
+        )
+        await event_publisher.publish(webhook_event)
+    except Exception as e:
+        # Log but don't fail the webhook
+        print(f"Failed to publish webhook event: {e}")
     
     # Process position update
     position = await service.process_position_update(db, payload)

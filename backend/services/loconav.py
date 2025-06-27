@@ -15,6 +15,8 @@ from geoalchemy2 import WKTElement
 
 from models import Truck, VehiclePosition
 from schemas import LocoNavWebhookPayload, VehiclePositionCreate
+from events import PositionUpdatedEvent, TripStatusChangedEvent
+from events.publisher import event_publisher
 
 
 class LocoNavService:
@@ -89,6 +91,48 @@ class LocoNavService:
         await db.commit()
         await db.refresh(position)
         
+        # Publish position update event
+        try:
+            # Get previous position to calculate distance
+            prev_position = await self.get_latest_position(db, truck.id)
+            distance_from_last = None
+            time_since_last = None
+            
+            if prev_position and prev_position.id != position.id:
+                # Calculate distance using PostGIS
+                query = """
+                SELECT ST_Distance(
+                    :new_location::geography,
+                    :old_location::geography
+                ) as distance
+                """
+                result = await db.execute(
+                    query,
+                    {
+                        "new_location": f"POINT({payload.longitude} {payload.latitude})",
+                        "old_location": prev_position.location
+                    }
+                )
+                distance_from_last = result.scalar()
+                time_since_last = int((position.timestamp - prev_position.timestamp).total_seconds())
+            
+            event = PositionUpdatedEvent(
+                truck_id=str(truck.id),
+                truck_number=truck.truck_number,
+                lat=payload.latitude,
+                lng=payload.longitude,
+                speed=payload.speed,
+                heading=payload.heading,
+                ignition=payload.ignition,
+                altitude=payload.altitude,
+                accuracy=payload.accuracy,
+                distance_from_last=distance_from_last,
+                time_since_last=time_since_last
+            )
+            await event_publisher.publish(event)
+        except Exception as e:
+            print(f"Failed to publish position event: {e}")
+        
         # Handle special events
         if payload.event_type:
             await self._handle_event(db, truck.id, payload.event_type, payload)
@@ -123,9 +167,26 @@ class LocoNavService:
             trip = result.scalar_one_or_none()
             
             if trip and trip.status == "scheduled":
+                old_status = trip.status
                 trip.status = "in_progress"
                 trip.started_at = payload.timestamp
                 await db.commit()
+                
+                # Publish trip status changed event
+                try:
+                    event = TripStatusChangedEvent(
+                        trip_id=str(trip.id),
+                        vpc_id=trip.vpc_id,
+                        truck_id=str(truck_id),
+                        old_status=old_status,
+                        new_status="in_progress",
+                        reason="Trip started via LocoNav webhook",
+                        location_lat=payload.latitude,
+                        location_lng=payload.longitude
+                    )
+                    await event_publisher.publish(event)
+                except Exception as e:
+                    print(f"Failed to publish trip status event: {e}")
                 
         elif event_type == "trip_end" and payload.trip_id:
             # Mark trip as completed
@@ -139,9 +200,26 @@ class LocoNavService:
             trip = result.scalar_one_or_none()
             
             if trip and trip.status == "in_progress":
+                old_status = trip.status
                 trip.status = "completed"
                 trip.completed_at = payload.timestamp
                 await db.commit()
+                
+                # Publish trip status changed event
+                try:
+                    event = TripStatusChangedEvent(
+                        trip_id=str(trip.id),
+                        vpc_id=trip.vpc_id,
+                        truck_id=str(truck_id),
+                        old_status=old_status,
+                        new_status="completed",
+                        reason="Trip completed via LocoNav webhook",
+                        location_lat=payload.latitude,
+                        location_lng=payload.longitude
+                    )
+                    await event_publisher.publish(event)
+                except Exception as e:
+                    print(f"Failed to publish trip status event: {e}")
     
     async def get_latest_position(
         self,
