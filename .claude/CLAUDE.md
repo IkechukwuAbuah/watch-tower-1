@@ -1,4 +1,7 @@
 Use supabase mcp
+update the toy-box documents: /Users/x/Downloads/watch-tower-experiments/watch-tower-1/.cursor/toy-box
+follow the rules: /Users/x/Downloads/watch-tower-experiments/watch-tower-1/.cursor/rules
+
 
 ---
 

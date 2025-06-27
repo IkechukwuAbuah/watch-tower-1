@@ -13,14 +13,29 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import routers
-from api import trips, trucks, analytics
+from api import trips, trucks, analytics, webhooks, admin
+
+# Import models to register them with Base
+from models import Truck, Trip, VehiclePosition
+
+# Import database initialization
+from db.session import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle startup and shutdown events"""
     # Startup
     print("🚀 Starting Watch Tower API...")
+    print("📊 Initializing database...")
+    try:
+        await init_db()
+        print("✅ Database initialized successfully")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+        raise
+    
     yield
+    
     # Shutdown
     print("👋 Shutting down Watch Tower API...")
 
@@ -49,6 +64,8 @@ async def health_check():
 app.include_router(trips.router, prefix="/api/v1/trips", tags=["trips"])
 app.include_router(trucks.router, prefix="/api/v1/trucks", tags=["trucks"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
+app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
+app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
 
 if __name__ == "__main__":
     import uvicorn
