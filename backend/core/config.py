@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     slack_bot_token: Optional[str] = None
     slack_app_token: Optional[str] = None
     slack_signing_secret: Optional[str] = None
+    slack_alerts_channel: str = "#fleet-alerts"
     
     # Celery
     celery_broker_url: str = "redis://localhost:6379/1"

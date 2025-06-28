@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import routers
-from api import trips, trucks, analytics, webhooks, admin
+from api import trips, trucks, analytics, webhooks, admin, ai
 
 # Import models to register them with Base
 from models import Truck, Trip, VehiclePosition
@@ -164,6 +164,7 @@ app.include_router(trucks.router, prefix="/api/v1/trucks", tags=["trucks"])
 app.include_router(analytics.router, prefix="/api/v1/analytics", tags=["analytics"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["admin"])
+app.include_router(ai.router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn
