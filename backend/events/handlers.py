@@ -13,6 +13,7 @@ from .schemas import EventType
 from models import VehiclePosition, Trip, Truck
 from db.session import get_async_session
 from core.config import settings
+from services.slack_service import slack_service
 
 logger = logging.getLogger(__name__)
 
@@ -102,10 +103,16 @@ class AlertHandler(EventHandler):
                 }
             )
             
-            # TODO: Implement Slack notification
-            if event.get("notify_slack", True):
-                # Send to Slack
-                pass
+            # Send Slack notification
+            if event.get("notify_slack", True) and settings.slack_bot_token:
+                await slack_service.send_alert({
+                    "severity": event["severity"],
+                    "title": event["title"],
+                    "alert_type": event["alert_type"],
+                    "description": event.get("description", ""),
+                    "truck_number": event.get("truck_number"),
+                    "location": event.get("location")
+                })
             
             # TODO: Implement email notification
             if event.get("notify_email", False):
@@ -155,10 +162,16 @@ class ErrorHandler(EventHandler):
                 }
             )
             
-            # TODO: Implement error recovery logic
+            # Implement error recovery logic
             if event.get("recoverable", True) and event.get("retry_count", 0) < 3:
-                # Schedule retry
-                pass
+                # Send error alert to Slack for critical errors
+                if event["error_type"] == "critical" and settings.slack_bot_token:
+                    await slack_service.send_alert({
+                        "severity": "critical",
+                        "title": f"System Error in {event['service']}",
+                        "alert_type": "system_error",
+                        "description": f"Operation: {event['operation']}\nError: {event['error_message']}\nRetry: {event.get('retry_count', 0)}/3"
+                    })
                 
         except Exception as e:
             logger.error(f"Failed to handle error event: {e}")

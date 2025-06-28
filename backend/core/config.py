@@ -31,10 +31,9 @@ class Settings(BaseSettings):
     event_batch_size: int = 100
     event_block_ms: int = 1000  # How long to block waiting for events
     
-    # LocoNav
-    loconav_api_key: Optional[str] = None
-    loconav_api_secret: Optional[str] = None
-    loconav_base_url: str = "https://api.loconav.com"
+    # LocoNav - CORRECTED IMPLEMENTATION
+    loconav_user_token: Optional[str] = None
+    loconav_base_url: str = "https://api.a.loconav.com"
     loconav_timeout: int = 30
     
     # Google Sheets
@@ -51,6 +50,7 @@ class Settings(BaseSettings):
     slack_bot_token: Optional[str] = None
     slack_app_token: Optional[str] = None
     slack_signing_secret: Optional[str] = None
+    slack_alerts_channel: str = "#fleet-alerts"
     
     # Celery
     celery_broker_url: str = "redis://localhost:6379/1"
