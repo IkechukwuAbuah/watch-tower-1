@@ -16,15 +16,14 @@ class LocoNavAPIService:
     
     def __init__(self):
         self.base_url = settings.loconav_base_url
-        self.api_key = settings.loconav_api_key
-        self.api_secret = settings.loconav_api_secret
+        self.user_token = settings.loconav_user_token
         self.timeout = settings.loconav_timeout
         
-        if not self.api_key:
-            raise ValueError("LOCONAV_API_KEY not configured")
+        if not self.user_token:
+            raise ValueError("LOCONAV_USER_TOKEN not configured")
             
         self.headers = {
-            "User-Authentication": self.api_key,
+            "User-Authentication": self.user_token,
             "Content-Type": "application/json"
         }
     

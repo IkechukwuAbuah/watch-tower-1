@@ -1,8 +1,15 @@
 """
 OpenAI Responses API service for Watch Tower natural language interface
+
+Uses the new Responses API with:
+- Built-in state management via previous_response_id
+- Enhanced function calling capabilities  
+- Secure JSON parsing (no eval())
+- Future-ready for built-in tools (web search, file search, MCP)
 """
 
 import logging
+import json
 from typing import Dict, List, Optional, Any, Callable
 from openai import AsyncOpenAI
 from core.config import settings
@@ -15,9 +22,9 @@ class AIService:
     
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = settings.openai_model
+        self.model = settings.openai_model or "gpt-4o-mini"
         self.temperature = settings.openai_temperature
-        self.max_tokens = settings.openai_max_tokens
+        self.max_output_tokens = settings.openai_max_tokens
         
         # Function registry for available AI tools
         self.function_registry: Dict[str, Callable] = {}
@@ -177,28 +184,48 @@ Key context:
 
 Use the available functions to help users with their fleet management queries."""
 
-            # Make API call to OpenAI
-            response = await self.client.chat.completions.create(
+            # Make API call to OpenAI Responses API
+            response = await self.client.responses.create(
                 model=self.model,
-                messages=[
+                input=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
                 ],
                 tools=tools,
                 tool_choice="auto",
                 temperature=self.temperature,
-                max_tokens=self.max_tokens
+                max_output_tokens=self.max_output_tokens,
+                previous_response_id=user_context.get("previous_response_id") if user_context else None,
+                store=True  # Enable state management
             )
             
-            message = response.choices[0].message
+            # Handle Responses API output format
+            if not response.output:
+                return {
+                    "response": "I apologize, but I didn't receive a proper response. Please try again.",
+                    "function_calls": [],
+                    "status": "error",
+                    "response_id": response.id
+                }
             
             # Check if AI wants to call functions
-            if message.tool_calls:
+            function_call_outputs = [item for item in response.output if getattr(item, 'type', None) == "function_call"]
+            if function_call_outputs:
                 function_results = []
                 
-                for tool_call in message.tool_calls:
-                    function_name = tool_call.function.name
-                    function_args = eval(tool_call.function.arguments)
+                for function_call in function_call_outputs:
+                    function_name = function_call.name
+                    try:
+                        # SECURITY: Use json.loads instead of eval()
+                        function_args = json.loads(function_call.arguments)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Invalid JSON in function arguments: {e}")
+                        function_results.append({
+                            "call_id": getattr(function_call, 'call_id', function_call.id),
+                            "function": function_name,
+                            "error": f"Invalid function arguments format: {str(e)}"
+                        })
+                        continue
                     
                     logger.info(f"Calling function: {function_name} with args: {function_args}")
                     
@@ -206,57 +233,64 @@ Use the available functions to help users with their fleet management queries.""
                         try:
                             result = await self.function_registry[function_name](**function_args)
                             function_results.append({
-                                "tool_call_id": tool_call.id,
+                                "call_id": getattr(function_call, 'call_id', function_call.id),
                                 "function": function_name,
                                 "result": result
                             })
                         except Exception as e:
                             logger.error(f"Function {function_name} failed: {e}")
                             function_results.append({
-                                "tool_call_id": tool_call.id,
+                                "call_id": getattr(function_call, 'call_id', function_call.id),
                                 "function": function_name,
                                 "error": str(e)
                             })
                     else:
                         logger.error(f"Unknown function: {function_name}")
                         function_results.append({
-                            "tool_call_id": tool_call.id,
+                            "call_id": getattr(function_call, 'call_id', function_call.id),
                             "function": function_name,
                             "error": f"Function {function_name} not available"
                         })
                 
-                # Get final response from AI with function results
-                messages = [
+                # Get final response with function results using Responses API
+                input_messages = [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": query},
-                    {"role": "assistant", "content": message.content, "tool_calls": message.tool_calls}
+                    {"role": "user", "content": query}
                 ]
                 
+                # Add function calls and results to input
+                for function_call in function_call_outputs:
+                    input_messages.append(function_call)
+                
                 for result in function_results:
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": result["tool_call_id"],
-                        "content": str(result.get("result", result.get("error")))
+                    input_messages.append({
+                        "type": "function_call_output",
+                        "call_id": result["call_id"],
+                        "output": str(result.get("result", result.get("error")))
                     })
                 
-                final_response = await self.client.chat.completions.create(
+                final_response = await self.client.responses.create(
                     model=self.model,
-                    messages=messages,
+                    input=input_messages,
                     temperature=self.temperature,
-                    max_tokens=self.max_tokens
+                    max_output_tokens=self.max_output_tokens,
+                    previous_response_id=response.id,
+                    store=True
                 )
                 
                 return {
-                    "response": final_response.choices[0].message.content,
+                    "response": final_response.output_text if hasattr(final_response, 'output_text') else str(final_response.output),
                     "function_calls": function_results,
-                    "status": "success"
+                    "status": "success",
+                    "response_id": final_response.id
                 }
             else:
                 # Direct response without function calls
                 return {
-                    "response": message.content,
+                    "response": response.output_text if hasattr(response, 'output_text') else str(response.output),
                     "function_calls": [],
-                    "status": "success"
+                    "status": "success",
+                    "response_id": response.id
                 }
                 
         except Exception as e:
